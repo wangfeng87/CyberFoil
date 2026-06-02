@@ -698,9 +698,15 @@ namespace {
         if (!item.hasIconUrl)
             return "";
 
-        std::string cacheDir = inst::config::appDir + "/remote_icons";
-        if (!std::filesystem::exists(cacheDir))
-            std::filesystem::create_directory(cacheDir);
+        const std::filesystem::path primaryDir(inst::config::remoteIconsDir);
+        const std::filesystem::path legacyDir(inst::config::legacyShopIconsDir);
+        std::error_code ec;
+        bool primaryUsable = std::filesystem::exists(primaryDir, ec);
+        if (!primaryUsable) {
+            ec.clear();
+            primaryUsable = std::filesystem::create_directory(primaryDir, ec);
+        }
+        const bool legacyUsable = std::filesystem::exists(legacyDir, ec);
 
         std::string urlPath = item.iconUrl;
         std::string ext = ".jpg";
@@ -718,7 +724,16 @@ namespace {
             fileName = std::to_string(item.titleId);
         else
             fileName = std::to_string(std::hash<std::string>{}(item.iconUrl));
-        return cacheDir + "/" + fileName + ext;
+
+        const std::filesystem::path primaryPath = primaryDir / (fileName + ext);
+        const std::filesystem::path legacyPath = legacyDir / (fileName + ext);
+        if (std::filesystem::exists(primaryPath))
+            return primaryPath.string();
+        if (std::filesystem::exists(legacyPath))
+            return legacyPath.string();
+        if (!primaryUsable && legacyUsable)
+            return legacyPath.string();
+        return primaryPath.string();
     }
 
     bool IsBaseTitleCurrentlyInstalled(u64 baseTitleId)

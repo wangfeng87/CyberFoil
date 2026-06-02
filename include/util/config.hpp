@@ -8,6 +8,9 @@ namespace inst::config {
     static const std::string appDir = "sdmc:/switch/CyberFoil";
     static const std::string configPath = appDir + "/config.json";
     static const std::string remotesDir = appDir + "/remotes";
+    static const std::string legacyShopsDir = appDir + "/shops";
+    static const std::string remoteIconsDir = appDir + "/remote_icons";
+    static const std::string legacyShopIconsDir = appDir + "/shop_icons";
     static const std::string appVersion = std::string(APP_VERSION);
 #ifdef APP_GIT_META
     static const std::string appGitMeta = std::string(APP_GIT_META);

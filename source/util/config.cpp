@@ -78,6 +78,11 @@ namespace inst::config {
             return std::filesystem::create_directories(inst::config::remotesDir, ec);
         }
 
+        std::string RemoteDedupKey(const inst::config::RemoteProfile& remote)
+        {
+            return inst::config::BuildRemoteUrl(remote) + "\x1f" + Trim(remote.username) + "\x1f" + Trim(remote.password);
+        }
+
         bool ParseBoolTextValue(const std::string& value, bool& out)
         {
             std::string lower = ToLower(Trim(value));
@@ -263,6 +268,16 @@ namespace inst::config {
                 if (!root["remote"].is_object())
                     return false;
                 remoteNode = &root["remote"];
+            } else if (root.contains("shop")) {
+                if (!root["shop"].is_object())
+                    return false;
+                remoteNode = &root["shop"];
+                needsRewrite = true;
+            } else if (root.contains("shops")) {
+                if (!root["shops"].is_object())
+                    return false;
+                remoteNode = &root["shops"];
+                needsRewrite = true;
             } else {
                 needsRewrite = true;
             }
@@ -401,21 +416,83 @@ namespace inst::config {
 
         void MigrateLegacyRemoteFiles()
         {
+            const std::filesystem::path sourceDirs[] = {
+                std::filesystem::path(inst::config::remotesDir),
+                std::filesystem::path(inst::config::legacyShopsDir)
+            };
+
+            for (const auto& sourceDir : sourceDirs) {
+                std::error_code ec;
+                if (!std::filesystem::exists(sourceDir, ec) || !std::filesystem::is_directory(sourceDir, ec))
+                    continue;
+
+                for (const auto& entry : std::filesystem::directory_iterator(sourceDir, ec)) {
+                    if (ec)
+                        break;
+                    if (!entry.is_regular_file())
+                        continue;
+
+                    bool needsRewrite = false;
+                    inst::config::RemoteProfile parsed;
+                    if (!ParseRemoteFile(entry.path(), parsed, &needsRewrite))
+                        continue;
+                    if (!needsRewrite && sourceDir != std::filesystem::path(inst::config::legacyShopsDir))
+                        continue;
+
+                    parsed.fileName = entry.path().filename().string();
+                    std::string ignored;
+                    if (!inst::config::SaveRemote(parsed, &ignored))
+                        continue;
+
+                    if (sourceDir == std::filesystem::path(inst::config::legacyShopsDir)) {
+                        std::error_code removeEc;
+                        std::filesystem::remove(entry.path(), removeEc);
+                    }
+                }
+            }
+
+            std::error_code emptyCheckEc;
+            if (std::filesystem::exists(std::filesystem::path(inst::config::legacyShopsDir), emptyCheckEc) &&
+                std::filesystem::is_empty(std::filesystem::path(inst::config::legacyShopsDir), emptyCheckEc)) {
+                std::error_code removeDirEc;
+                std::filesystem::remove(std::filesystem::path(inst::config::legacyShopsDir), removeDirEc);
+            }
+        }
+
+        void MigrateLegacyRemoteIcons()
+        {
+            const std::filesystem::path legacyDir(inst::config::legacyShopIconsDir);
+            if (!std::filesystem::exists(legacyDir))
+                return;
+
             std::error_code ec;
-            for (const auto& entry : std::filesystem::directory_iterator(inst::config::remotesDir, ec)) {
+            std::filesystem::create_directories(inst::config::remoteIconsDir, ec);
+            if (ec)
+                return;
+
+            const std::filesystem::path newDir(inst::config::remoteIconsDir);
+            for (const auto& entry : std::filesystem::directory_iterator(legacyDir, ec)) {
                 if (ec)
                     break;
                 if (!entry.is_regular_file())
                     continue;
 
-                bool needsRewrite = false;
-                inst::config::RemoteProfile parsed;
-                if (!ParseRemoteFile(entry.path(), parsed, &needsRewrite) || !needsRewrite)
-                    continue;
+                const std::filesystem::path destination = newDir / entry.path().filename();
+                std::error_code copyEc;
+                if (!std::filesystem::exists(destination)) {
+                    std::filesystem::copy_file(entry.path(), destination, std::filesystem::copy_options::none, copyEc);
+                    if (copyEc)
+                        continue;
+                }
 
-                parsed.fileName = entry.path().filename().string();
-                std::string ignored;
-                inst::config::SaveRemote(parsed, &ignored);
+                std::error_code removeEc;
+                std::filesystem::remove(entry.path(), removeEc);
+            }
+
+            std::error_code emptyCheckEc;
+            if (std::filesystem::exists(legacyDir, emptyCheckEc) && std::filesystem::is_empty(legacyDir, emptyCheckEc)) {
+                std::error_code removeDirEc;
+                std::filesystem::remove(legacyDir, removeDirEc);
             }
         }
 
@@ -546,16 +623,33 @@ namespace inst::config {
         if (!EnsureRemotesDirectory())
             return remotes;
 
-        std::error_code ec;
-        for (const auto& entry : std::filesystem::directory_iterator(inst::config::remotesDir, ec)) {
-            if (ec)
-                break;
-            if (!entry.is_regular_file())
+        std::vector<std::string> seenKeys;
+        const std::filesystem::path sourceDirs[] = {
+            std::filesystem::path(inst::config::remotesDir),
+            std::filesystem::path(inst::config::legacyShopsDir)
+        };
+
+        for (const auto& sourceDir : sourceDirs) {
+            std::error_code ec;
+            if (!std::filesystem::exists(sourceDir, ec) || !std::filesystem::is_directory(sourceDir, ec))
                 continue;
 
-            RemoteProfile parsed;
-            if (ParseRemoteFile(entry.path(), parsed))
+            for (const auto& entry : std::filesystem::directory_iterator(sourceDir, ec)) {
+                if (ec)
+                    break;
+                if (!entry.is_regular_file())
+                    continue;
+
+                RemoteProfile parsed;
+                if (!ParseRemoteFile(entry.path(), parsed))
+                    continue;
+
+                const std::string dedupKey = RemoteDedupKey(parsed);
+                if (std::find(seenKeys.begin(), seenKeys.end(), dedupKey) != seenKeys.end())
+                    continue;
+                seenKeys.push_back(dedupKey);
                 remotes.push_back(std::move(parsed));
+            }
         }
 
         SortRemoteProfiles(remotes);
@@ -613,9 +707,19 @@ namespace inst::config {
         std::string sanitized = std::filesystem::path(fileName).filename().string();
         if (sanitized.empty())
             return false;
-        std::filesystem::path remotePath = std::filesystem::path(inst::config::remotesDir) / sanitized;
         std::error_code ec;
-        return std::filesystem::remove(remotePath, ec);
+        bool removed = false;
+        const std::filesystem::path dirs[] = {
+            std::filesystem::path(inst::config::remotesDir),
+            std::filesystem::path(inst::config::legacyShopsDir)
+        };
+
+        for (const auto& dir : dirs) {
+            std::filesystem::path remotePath = dir / sanitized;
+            removed = std::filesystem::remove(remotePath, ec) || removed;
+            ec.clear();
+        }
+        return removed;
     }
 
     bool SetActiveRemote(const RemoteProfile& remote, bool writeConfig)
@@ -796,6 +900,7 @@ namespace inst::config {
         EnsureRemotesDirectory();
         TryMigrateLegacyRemoteToJson();
         MigrateLegacyRemoteFiles();
+        MigrateLegacyRemoteIcons();
         if (needsConfigRewrite)
             setConfig();
     }
