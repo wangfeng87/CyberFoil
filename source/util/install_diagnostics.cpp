@@ -142,6 +142,22 @@ namespace inst::diag {
             return failure;
         }
 
+        if (ContainsAny(lower, {
+                "can't parse nca",
+                "cant parse nca",
+                "outdated firmware",
+                "hos update required",
+                "required system firmware",
+                "too low to decrypt",
+                "openfilesystemwithid",
+                "failed to open file system with id"
+            }) || lower.find("0x001fd602") != std::string::npos) {
+            failure.category = "Unsupported format / Firmware mismatch";
+            failure.summary = "[ERROR] Can't parse NCA. Outdated firmware. HOS update required.";
+            failure.recommendation = "Update firmware/patches or use compatible content.";
+            return failure;
+        }
+
         if (ContainsAny(lower, {"failed to register", "failed to set content records", "commit content records", "failed to read file", "failed to write", "storage", "sd", "i/o", "no space", "filesystem"})) {
             failure.category = "Storage write failure";
             failure.summary = "[ERROR] Failed to write content to target storage.";
@@ -149,7 +165,7 @@ namespace inst::diag {
             return failure;
         }
 
-        if (ContainsAny(lower, {"firmware", "required system firmware", "too low to decrypt", "unsupported"})) {
+        if (ContainsAny(lower, {"firmware", "unsupported"})) {
             failure.category = "Unsupported format / Firmware mismatch";
             failure.summary = "[ERROR] Content requires unsupported firmware or format.";
             failure.recommendation = "Update firmware/patches or use compatible content.";
