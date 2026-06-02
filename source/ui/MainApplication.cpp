@@ -281,7 +281,7 @@ namespace inst::ui {
                                 this->instpage->installIconImage->SetHeight(kRightIconSize);
                                 this->instpage->installIconImage->SetVisible(true);
                                 this->instpage->awooImage->SetVisible(false);
-                                const std::string msg = last_name + "inst.info_page.desc1"_lang + "\n\n" + Language::GetRandomMsg();
+                                const std::string msg = last_name + "inst.info_page.desc1"_lang + "\n\n" + "inst.info_page.complete"_lang;
                                 this->instpage->installInfoText->SetText(WrapForTextBlock(this->instpage->installInfoText, msg, 900));
                                 this->instpage->installInfoText->SetX(40);
                                 this->instpage->installInfoText->SetY(240);
@@ -295,7 +295,7 @@ namespace inst::ui {
             if (inst::mtp::ConsumeStreamInstallComplete()) {
                 this->instpage->installBar->SetVisible(true);
                 this->instpage->installBar->SetProgress(100);
-                const std::string done_msg = last_name + "inst.info_page.desc1"_lang + "\n\n" + Language::GetRandomMsg() + "\n\n" + "inst.mtp.waiting.hint"_lang;
+                const std::string done_msg = last_name + "inst.info_page.desc1"_lang + "\n\n" + "inst.info_page.complete"_lang + "\n\n" + "inst.mtp.waiting.hint"_lang;
                 this->instpage->installInfoText->SetText(WrapForTextBlock(this->instpage->installInfoText, done_msg, 900));
                 this->instpage->installInfoText->SetX(40);
                 this->instpage->installInfoText->SetY(240);

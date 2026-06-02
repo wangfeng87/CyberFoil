@@ -2494,9 +2494,9 @@ namespace remoteInstStuff {
             if (std::filesystem::exists(inst::config::appDir + "/success.wav")) audioPath = inst::config::appDir + "/success.wav";
             std::thread audioThread(inst::util::playAudio, audioPath);
             if (items.size() > 1)
-                inst::ui::mainApp->CreateShowDialog(std::to_string(items.size()) + "inst.info_page.desc0"_lang, Language::GetRandomMsg(), {"common.ok"_lang}, true);
+                inst::ui::mainApp->CreateShowDialog(std::to_string(items.size()) + "inst.info_page.desc0"_lang, "inst.info_page.complete"_lang, {"common.ok"_lang}, true);
             else
-                inst::ui::mainApp->CreateShowDialog(names.front() + "inst.info_page.desc1"_lang, Language::GetRandomMsg(), {"common.ok"_lang}, true);
+                inst::ui::mainApp->CreateShowDialog(names.front() + "inst.info_page.desc1"_lang, "inst.info_page.complete"_lang, {"common.ok"_lang}, true);
             audioThread.join();
         }
 
