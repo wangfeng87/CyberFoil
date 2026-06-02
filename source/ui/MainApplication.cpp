@@ -92,13 +92,14 @@ namespace inst::ui {
             return;
 
         if (force || regainedFocus || !padIsConnected(&this->input_pad)) {
-            padConfigureInput(1, HidNpadStyleSet_NpadStandard);
-            padInitializeDefault(&this->input_pad);
+            padConfigureInput(8, HidNpadStyleSet_NpadStandard);
+            padInitializeAny(&this->input_pad);
         }
     }
 
     void MainApplication::OnLoad() {
         mainApp = this;
+        this->RefreshInputDevice(true);
 
         Language::Load();
 
