@@ -244,5 +244,6 @@ namespace inst::ui {
             bool buildInstalledSnapshot();
             void ensureInstalledSectionPlaceholder();
             bool ensureInstalledSectionBuilt();
+            void rebuildSectionsByTitleType();
     };
 }
